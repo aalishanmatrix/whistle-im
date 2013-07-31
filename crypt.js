@@ -25,7 +25,7 @@ if (typeof this.window === 'undefined') {
 // Crypt module
 (function(whistle, forge, bcrypt, global) {
     "use strict";
-    
+
     var pki = forge.pki,
         random = forge.random,
         rsa = forge.rsa,
@@ -105,7 +105,7 @@ if (typeof this.window === 'undefined') {
      * @type {Object.<string,*>}
      */
     var crypt = {};
-    
+
     /**
      * RSA bits.
      * @type {number}
@@ -135,35 +135,62 @@ if (typeof this.window === 'undefined') {
     crypt.AES_BYTES = crypt.AES_BITS/8;
 
     /**
+     * Asynchronously generates a private and public key pair.
+     * @param {number} bits Key size
+     * @param {number} exp Public exponent
+     * @param {function(Error, Array.<string>)} callback
+     */
+    function generateAsync(bits, exp, callback) {
+        var state = rsa.createKeyPairGenerationState(bits, exp);
+        var step = function() {
+            try {
+                if (!rsa.stepKeyPairGenerationState(state, 500 /* ms */)) {
+                    setTimeout(step, 0);
+                } else {
+                    var keys = [];
+                    keys.push(pki.privateKeyToPem(state.keys.privateKey));
+                    keys.push(pki.publicKeyToPem(state.keys.publicKey));
+                    callback(null, keys);
+                }
+            } catch (err) {
+                callback(err);
+            }
+        };
+        setTimeout(step, 0);
+    }
+
+    /**
      * Generates a private and public key pair.
      * @param {(number|function(Error, Array.<string>))=} bits Bits
      * @param {function(Error, Array.<string>)=} callback
-     * @returns {Array.<string>} Private and public key if callback has been omitted
+     * @returns {Array.<string>|undefined} Private and public key if callback has been omitted
      */
     crypt.generateKeyPair = function(bits, callback) {
         if (typeof bits === 'function') {
             callback = bits;
             bits = null;
         }
-        if (callback) {
-            var state = rsa.createKeyPairGenerationState(bits || crypt.RSA_BITS, 0x10001);
-            var step = function() {
-                try {
-                    if (!rsa.stepKeyPairGenerationState(state, 1000 /* ms */)) {
-                        setTimeout(step, 0);
-                    } else {
-                        var keys = [];
-                        keys.push(pki.privateKeyToPem(state.keys.privateKey));
-                        keys.push(pki.publicKeyToPem(state.keys.publicKey));
-                        callback(null, keys);
+        bits = bits || crypt.RSA_BITS;
+        var exp = 0x10001; // 65537
+
+        if (callback) { // Async
+
+            // Try to use the device's native generator if available
+            if (whistle.native.available) {
+                whistle.native.genkeys(bits, exp, function(err, keys) {
+                    if (err) {
+                        generateAsync(bits, exp, callback);
+                        return;
                     }
-                } catch (err) {
-                    callback(err);
-                }
-            };
-            setTimeout(step, 1);
-        } else {
-            var pair = rsa.generateKeyPair({bits: bits || crypt.RSA_BITS, e: 0x10001});
+                    callback(null, keys);
+                })
+            } else {
+                generateAsync(bits, exp, callback);
+            }
+
+        } else { // Sync (actually not used)
+
+            var pair = rsa.generateKeyPair({bits: bits, e: exp});
             var keys = [];
             keys.push(pki.privateKeyToPem(pair.privateKey));
             keys.push(pki.publicKeyToPem(pair.publicKey));
@@ -388,9 +415,9 @@ if (typeof this.window === 'undefined') {
             }
         };
     }
-    
+
     crypt.bcrypt = bcrypt;
 
     whistle.crypt = crypt;
-    
+
 })(whistle, forge, dcodeIO.bcrypt, this);
