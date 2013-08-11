@@ -30,8 +30,8 @@ License Agreement](https://github.com/whistle-im/whistle-im/blob/master/CLA.md) 
 
 Translations are simple JSON files containing mappings of English words and sentences to your native
 language. Some values use placeholders like `%name%` which must not be translated but kept as is.
-Some values also use HTML tags like `<strong>` or similar. These must not be changed in any way but
-kept as is. These will later be replaced with the actual information that belongs there. Language
+These will later be replaced with the actual information that belongs there. Some values also use
+HTML tags like `<strong>` or similar. These must not be changed in any way but kept as is. Language
 files must use UTF8 encoding and be valid JSON.
 
 To create a new language, just fork our repository, add your language file and send us a pull
@@ -51,7 +51,7 @@ like to contribute to our development, you can freely pick from the following ta
 agree to our CLA mentioned above. Everything else, like if your code will be open source or not, is
 entirely up to you as the original author.
 
-### All platforms except Android
+### All platforms except Android &amp; HTML5
 
 * **genkeys** Generate 2048 Bit RSA private and public key pairs (PEM format)
 * **base64encode/decode** Convert a variable number of bytes to/from base64
