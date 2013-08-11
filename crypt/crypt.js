@@ -1,31 +1,11 @@
 /**
- * @fileoverview whistle client crypt.
+ * @fileoverview whistle.im client crypt.
  * All rights reserved.
  * @author Daniel Wirtz <dcode@dcode.io>
  */
-
-// Crypt worker
-if (typeof this.window === 'undefined') {
-    var whistle = {};
-    importScripts('../forge.min.js', '../bcrypt.min.js');
-    self.addEventListener("message", function(e) {
-        var data = e.data;
-        var method = data.shift();
-        try {
-            switch (method) {
-                case 'start': break;
-                default: self.postMessage([null, whistle.crypt[method].apply(this, data)]);
-            }
-        } catch (err) {
-            self.postMessage([{ "message": err.message }]); // Mimic error
-        }
-    });
-}
-
-// Crypt module
 (function(whistle, forge, bcrypt, global) {
     "use strict";
-
+    
     var pki = forge.pki,
         random = forge.random,
         rsa = forge.rsa,
@@ -38,12 +18,18 @@ if (typeof this.window === 'undefined') {
      * @type {Array.<Worker>}
      */
     var workers = [];
-    if (typeof global.Worker !== 'undefined') {
-        for (var i=0; i<3; i++) { // Let's expect 4 cores and use 3
-            var worker = new Worker("/js/whistle/crypt.js");
-            worker.working = false;
-            workers[i] = worker;
-            worker.postMessage(["start"]);
+    if (typeof global.window !== 'undefined') {
+        if (typeof global.Worker !== 'undefined') {
+            console.log("Environment supports workers");
+            for (var i=0; i<3; i++) { // Let's assume 4 cores and use 3
+                // TODO: Find out why this lags in FF
+                var worker = new Worker("/js/whistle/crypt-worker.js");
+                worker.working = false;
+                workers[i] = worker;
+                worker.postMessage(["start"]);
+            }
+        } else {
+            console.log("Environment lacks worker support");
         }
     }
 
@@ -105,7 +91,7 @@ if (typeof this.window === 'undefined') {
      * @type {Object.<string,*>}
      */
     var crypt = {};
-
+    
     /**
      * RSA bits.
      * @type {number}
@@ -176,8 +162,8 @@ if (typeof this.window === 'undefined') {
         if (callback) { // Async
 
             // Try to use the device's native generator if available
-            if (whistle.native.available) {
-                whistle.native.genkeys(bits, exp, function(err, keys) {
+            if (whistle.plugin.available) {
+                whistle.plugin.genkeys(bits, exp, function(err, keys) {
                     if (err) {
                         generateAsync(bits, exp, callback);
                         return;
@@ -199,15 +185,46 @@ if (typeof this.window === 'undefined') {
     };
 
     /**
+     * Calculates the MD5 fingerprint of a key.
+     * @param {string} keyStr Public or private key
+     * @param {boolean=} unformatted Whether to return the result unformatted, defaults to false
+     */
+    crypt.fingerprint = function(keyStr, unformatted) {
+        keyStr = keyStr.replace(/\-\-\-\-\-[^\-]+\-\-\-\-\-|\s+/g, "");
+        var k = util.decode64(keyStr);
+        var md = forge.md.md5.create();
+        md.update(k);
+        var dig = md.digest().toHex();
+        if (unformatted) {
+            return dig;
+        }
+        var fp = "";
+        for (var i=0; i<30; i+=2) {
+            fp += dig.substring(i, i+2)+":";
+        }
+        fp += dig.substring(30);
+        return fp;
+    };
+
+    /**
      * Encrypts some data.
      * @param {string} data Data to encrypt
      * @param {string} publicKey Public key to use for encrypting
-     * @param {string=} privateKey Private key to use for signing
-     * @returns {{enc: string, sig: string|null}} Encrypted data and signature
+     * @param {(string|function(Error, {enc: string, sig: ?string}=))=} privateKey Private key to use for signing
+     * @param {function(Error, {enc: string, sig: ?string}=)=} callback Callback
+     * @returns {{enc: string, sig: ?string}|undefined} Encrypted data and signature
      */
-    crypt.encrypt = function(data, publicKey, privateKey) {
-        if (typeof arguments[arguments.length-1] === 'function') {
-            async("encrypt", arguments);
+    crypt.encrypt = function(data, publicKey, privateKey, callback) {
+        if (typeof privateKey === 'function') {
+            callback = privateKey;
+            privateKey = undefined;
+        }
+        if (typeof callback === 'function') {
+            if (whistle.plugin.hasCapability("encrypt")) {
+                whistle.plugin.encrypt(data, publicKey, privateKey, callback);
+            } else {
+                async("encrypt", arguments);
+            }
             return;
         }
         publicKey = pki.publicKeyFromPem(publicKey);
@@ -217,11 +234,11 @@ if (typeof this.window === 'undefined') {
         var cipher = aes.createEncryptionCipher(key);
         cipher.start(util.createBuffer(iv, "raw"));
         cipher.update(util.createBuffer(data, "raw"));
-        cipher.finish();
+        cipher.finish(); // PKCS#7 padding
         var enc = publicKey.encrypt(key+iv, "RSA-OAEP") + cipher.output.getBytes();
         var sig = null;
         if (privateKey) {
-            sig = this._sign(/* raw */ enc, privateKey);
+            sig = crypt._sign(/* raw */ enc, privateKey);
         }
         return {
             "enc": util.encode64(enc),
@@ -247,13 +264,28 @@ if (typeof this.window === 'undefined') {
      * Decrypts some data.
      * @param {string} enc Base64 encoded encrypted data
      * @param {string} privateKey Private key to use for decrypting
-     * @param {string=} sig Base64 encoded signature
-     * @param {string=} publicKey Public key to use for verifying
-     * @returns {{dec: string, ver: boolean|null}} Decrypted data and verification result
+     * @param {(string|function(Error, {dec: string, ver: boolean|null}=))=} sig Base64 encoded signature
+     * @param {(string|function(Error, {dec: string, ver: boolean|null}=))=} publicKey Public key to use for verifying
+     * @param {function(Error, {dec: string, ver: ?boolean})=} callback Callback
+     * @returns {{dec: string, ver: ?boolean}|undefined} Decrypted data and verification result
      */
-    crypt.decrypt = function(enc, privateKey, sig, publicKey) {
-        if (typeof arguments[arguments.length-1] === 'function') {
-            async("decrypt", arguments);
+    crypt.decrypt = function(enc, privateKey, sig, publicKey, callback) {
+        if (typeof publicKey === 'function') {
+            callback = publicKey;
+            publicKey = undefined;
+            sig = undefined;
+        }
+        if (typeof sig === 'function') {
+            callback = sig;
+            publicKey = undefined;
+            sig = undefined;
+        }
+        if (typeof callback === 'function') {
+            if (whistle.plugin.hasCapability("decrypt")) {
+                whistle.plugin.decrypt(enc, privateKey, sig, publicKey, callback);
+            } else {
+                async("decrypt", arguments);
+            }
             return;
         }
         privateKey = pki.privateKeyFromPem(privateKey);
@@ -338,43 +370,63 @@ if (typeof this.window === 'undefined') {
 
     /**
      * Encrypts a vcard.
-     * @param {string} data Vcard
+     * @param {Object} vcard Vcard
      * @param {string} publicKey Public key to encrypt with
-     * @returns {string} Encrypted vcard
+     * @param {function(Error, string=)=} callback Callback
+     * @returns {undefined|string} Encrypted vcard
      * @throws {Error} If encryption fails
      */
-    crypt.encryptVcard = function(vcard, publicKey) {
-        if (typeof arguments[arguments.length-1] === 'function') {
-            async("encryptVcard", arguments);
-            return;
-        }
-        if (vcard === null || vcard === "") {
-            return null;
+    crypt.encryptVcard = function(vcard, publicKey, callback) {
+        // Replace empty vcards with an empty string
+        if (vcard === null || typeof vcard != 'object' || Object.keys(vcard).length == 0) {
+            if (typeof callback === 'function') {
+                setTimeout(callback.bind(this, null, ""), 1);
+                return;
+            }
+            return "";
         }
         vcard = JSON.stringify(vcard);
-        vcard = crypt.encrypt(vcard, publicKey).enc;
-        return vcard;
+        if (typeof callback === 'function') {
+            crypt.encrypt(vcard, publicKey, function(err, enc) {
+                if (err) {
+                    callback(err);
+                    return;
+                }
+                callback(null, enc.enc);
+            });
+        } else {
+            return crypt.encrypt(vcard, publicKey).enc;
+        }
     };
 
     /**
      * Decrypts a vcard.
      * @param {string} data} Encrypted vcard
      * @param {string} privateKey Private key to decrypt with
-     * @returns {*} Decrypted vcard
+     * @param {function(Error, string=)=} callback
+     * @returns {undefined|Object} Decrypted vcard
      * @throws {Error} If decryption fails
      */
-    crypt.decryptVcard = function(data, privateKey) {
-        if (typeof arguments[arguments.length-1] === 'function') {
-            async("decryptVcard", arguments);
-            return;
+    crypt.decryptVcard = function(data, privateKey, callback) {
+        // Skip empty vcards
+        if (data === null || typeof data !== 'string' || data === "") {
+            if (typeof callback === 'function') {
+                setTimeout(callback.bind(this, null, null), 1);
+                return;
+            }
+            return null;
         }
-        if (data === null || data === "") {
-            whistle.vcard = null;
-            return;
+        if (typeof callback === 'function') {
+            crypt.decrypt(data, privateKey, function(err, dec) {
+                if (err) {
+                    callback(err);
+                    return;
+                }
+                callback(null, JSON.parse(dec.dec));
+            });
+        } else {
+            return JSON.parse(crypt.decrypt(data, privateKey).dec);
         }
-        var vcard = crypt.decrypt(data, privateKey).dec;
-        vcard = JSON.parse(vcard);
-        return vcard;
     };
 
     /**
@@ -385,12 +437,15 @@ if (typeof this.window === 'undefined') {
      * @returns {string|undefined} Hash
      */
     crypt.hash = function(pass, salt, callback) {
-        if (typeof arguments[arguments.length-1] === 'function') {
-            if (typeof salt === 'number') {
-                // WebWorkers don't have window.crypto, so salt it here
-                arguments[1] = bcrypt.genSaltSync(salt);
+        if (typeof callback === 'function') {
+            if (whistle.plugin.hasCapability("hash")) {
+                whistle.plugin.hash(pass, salt, callback);
+            } else {
+                if (typeof salt === 'number') { // WebWorkers don't have window.crypto, so salt it here
+                    salt = bcrypt.genSaltSync(salt);
+                }
+                async("hash", arguments);
             }
-            async("hash", arguments);
             return;
         }
         return bcrypt.hashSync(pass, salt); // Much faster than the async version
@@ -406,18 +461,14 @@ if (typeof this.window === 'undefined') {
     };
 
     // Web Crypto API Polyfill for bcrypt
-    if (!global.crypto) global.crypto = {};
-    if (!global.crypto.getRandomValues) {
-        global.crypto.getRandomValues = function(array) {
-            var bytes = crypt.random(array.length);
-            for (var i=0; i<array.length; i++) {
-                array[i] = bytes.charCodeAt(i);
-            }
-        };
-    }
-
+    bcrypt.setRandomPolyfill(function(array) {
+        var bytes = crypt.random(array.length);
+        for (var i=0; i<array.length; i++) {
+            array[i] = bytes.charCodeAt(i);
+        }
+    });
     crypt.bcrypt = bcrypt;
 
     whistle.crypt = crypt;
-
+    
 })(whistle, forge, dcodeIO.bcrypt, this);
