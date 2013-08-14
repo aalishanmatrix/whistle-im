@@ -57,7 +57,7 @@ entirely up to you as the original author.
 * **base64encode/decode** Convert a variable number of bytes to/from base64
 * **rsaesoaepEncrypt** Encrypt raw bytes using RSAES-OAEP using a PEM formatted public key
 * **rsaesoaepDecrypt** Decrypt the above back to raw bytes using a PEM formatted private key
-* **genaes** Generate a cryptographically secure random 256 bit / 32 byte key
+* **genaeskey** Generate a cryptographically secure random 256 bit / 32 byte key
 * **aesEncrypt** Encrypt a variable length of raw bytes through AES-256-CBC with PKCS#7 padding
 * **aesDecrypt** Decrypt the AES-256-CBC with PKCS#7 encrypted bytes from above
 
