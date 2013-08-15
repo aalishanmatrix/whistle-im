@@ -1,12 +1,15 @@
-whistle.im - privacy for everyone.
-==================================
+<div align="center">
+	<img src="https://raw.github.com/whistle-im/whistle-im/master/logo/logo.png" alt="whistle.im" />
+</div>
+
 The open source bits.
 
 Contents
 --------
-* Client-side cryptography library (utilizes [Web-Crypto-API](http://www.w3.org/TR/WebCryptoAPI/))
-* Client language files
+* [Client-side cryptography library](https://github.com/whistle-im/whistle-im/tree/master/crypt)
+* [Client language files](https://github.com/whistle-im/whistle-im/tree/master/i18n)
 * Platform specific code
+* [Privacy policy](https://github.com/whistle-im/whistle-im/blob/master/PRIVACYPOLICY.md)
 
 Encryption mechanism
 --------------------
