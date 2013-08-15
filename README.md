@@ -75,3 +75,12 @@ Contributors
 License
 -------
 All rights reserved. All contributions are properties of their respective owners.
+
+Imprint
+-------
+whistle.im c/o Daniel Wirtz, Michael Bank
+An der Zikkurat 4
+53894 Mechernich, Germany
+mail: whistle@whistle.im
+web: https://whistle.im
+USt-IdNr. gem. § 27 a UstG: DE262739457
