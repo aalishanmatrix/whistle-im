@@ -80,5 +80,5 @@ Imprint
 -------
 whistle.im c/o Daniel Wirtz, Michael Bank  
 An der Zikkurat 4, 53894 Mechernich, Germany  
-mail: whistle@whistle.im, web: https://whistle.im, tel: +49 174 8514016
+mail: whistle@whistle.im, web: https://whistle.im, tel: +49 174 8514016  
 USt-IdNr. gem. § 27 a UstG: DE262739457
