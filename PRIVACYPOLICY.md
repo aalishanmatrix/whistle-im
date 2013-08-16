@@ -3,20 +3,17 @@ whistle.im privacy policy
 We are dedicated to the practice of, how german authorities call it, "Datensparsamkeit" (data reduction and
 data economy). This means that our aim is to know and store as few data as absolutely necessary. This is
 also the reason for our decision not to ask you for any personal information like your email address,
-your real name or your mobile phone number. As a result you have to take care of your login data for yourself
-and, if you don't, your account will be lost forever.
+your real name or your mobile phone number. As a result you have to take care of your login data for yourself.
 
-What we basically know about you is your possibly entirely bogus whistle id and a bcrypt hash of your password
+What we basically know about you is your possibly entirely fictitious whistle id and a bcrypt hash of your password
 for authentication purposes. Everything else that we might know is some meta data and explained below. We cannot
-access messages, vCards or any other sensitive information because it always becomes encrypted - on your own
-device.
-
-In detail:
+access messages, vCards or any other sensitive information because it always becomes encrypted on your own
+device. In detail:
 
 Data transmission
 -----------------
 * We do not use cookies
-* Instead we use a unique token per user and session
+* We use a unique token per user and session
 * We do not store IP addresses
 * Passwords are hashed through bcrypt prior to submission
 * Passwords are rehashed with a new salt on a regular basis
