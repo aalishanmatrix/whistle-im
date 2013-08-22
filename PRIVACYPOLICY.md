@@ -15,19 +15,21 @@ Data transmission
 * We do not use cookies
 * We use a unique token per user and session
 * We do not store IP addresses
-* Passwords are hashed through bcrypt prior to submission
+* Authentication uses bcrypt hashing with salts as challenge
 * Passwords are rehashed with a new salt on a regular basis
-* We utilize SSL/TLS between you and our servers (4096 bit)
+* Your plain text password is never transmitted
+* Private group keys and names are exchanged between group members within encrypted vcards
+* Plain user or group vcards are never transmitted
+* We utilize SSL/TLS between you and our servers (4096/256 bit)
 * Encryption, decryption and hashing is done exclusively client-side
-* Before your encrypted private key can be retrieved you must have authenticated through bcrypt
 
 Data storage
 ------------
 
 ### User data
 * **id** Your whistle id
-* **pass** [bcrypt](http://en.wikipedia.org/wiki/Bcrypt) hash of your password used for authentication
-* **keys** Your [PBKDF2](http://en.wikipedia.org/wiki/PBKDF2) encrypted private and plain public key
+* **pass** [bcrypt](http://en.wikipedia.org/wiki/Bcrypt) hash including salt of your password used for authentication
+* **keys** Your [PBKDF2](http://en.wikipedia.org/wiki/PBKDF2) encrypted private and plain public key. The private key is empty if you have decided to manage it on your own.
 * **symkey** A randomly generated symmetric [AES](http://en.wikipedia.org/wiki/Advanced_Encryption_Standard) key used for poll/push notifications
 * **vcard** Your own vCard encrypted to yourself
 * **online** Your online state (Online, Away, Busy, Offline)
@@ -43,9 +45,14 @@ Data storage
 * **unread** Number of unread messages
 * **time** Contact update timestamp
 * **readtime** Last time new messages have been read at
-* **vcard** Your contact's vCard encrypted to yourself (not present for pending outgoing contacts)
+* **vcard** Your contact's vCard encrypted to yourself (not present for pending outgoing contacts). If a group: Includes the group's name and private key
 * **online** If a user: Your contact's online state
 * **owner** If a group: Whether you are the group's owner
+
+### Group data
+* **id** Unique random group id
+* **key** The group's public key
+* **created** Creation timestamp
 
 ### Message data
 * **id** Unique message id
@@ -64,7 +71,7 @@ Whenever you decide to delete a conversation with one of your contacts, your hal
 from our servers. This cannot be undone.
 
 ### Users
-If you ever decide to delete your entire whistle account, all your data (account, keys, contacts, both sides of your
+If you ever decide to delete your entire whistle id, all your data (account, keys, contacts, both sides of your
 conversations) will be immediately deleted from our servers. This cannot be undone.
 
 Data location
