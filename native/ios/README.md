@@ -1,1 +1,3 @@
-See the Android implementation. What's in there is exactly what we also need for iOS.
+whistle.im native iOS crypt
+===========================
+Based on OpenSSL.

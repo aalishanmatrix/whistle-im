@@ -1,1 +1,3 @@
-If you intend to contribute to the platform specific code then you may take this implementation for Android as a reference of what is required to get rolling.
+whistle.im native Android crypt
+===============================
+Based on javax.crypto / stock Bouncy Castle.
