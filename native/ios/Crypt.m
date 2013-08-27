@@ -101,7 +101,7 @@
         pkey = calloc(len+1, 1);
         BIO_read(bio, pkey, len);
         BIO_free_all(bio); bio = BIO_new(BIO_s_mem());
-        PEM_write_bio_RSAPublicKey(bio, rsa);
+        PEM_write_bio_RSA_PUBKEY(bio, rsa);
         len = BIO_pending(bio);
         pub = calloc(len+1, 1);
         BIO_read(bio, pub, len);
@@ -130,10 +130,9 @@
     BIO* bio = NULL;
     @try {
         // Parse public key
-        rsaPub = RSA_new();
         const char* pubRaw = [pub UTF8String]; // autoreleased
         bio = BIO_new_mem_buf((char*)pubRaw, strlen(pubRaw));
-        rsaPub = PEM_read_bio_RSA_PUBKEY(bio, &rsaPub, NULL, NULL);
+        rsaPub = PEM_read_bio_RSA_PUBKEY(bio, NULL, NULL, NULL);
         if (rsaPub == NULL) {
             *err = @"Invalid public key";
             return NULL;
@@ -171,15 +170,18 @@
         unsigned char aesBuf[[data length]+EVP_MAX_BLOCK_LENGTH];
         int len;
         if (!EVP_EncryptUpdate(&ctx, aesBuf, &len, [data bytes], [data length])) {
+            EVP_CIPHER_CTX_cleanup(&ctx);
             *err = @"Cipher update failed";
             return NULL;
         }
         [encRaw appendBytes:aesBuf length:len];
         if (!EVP_EncryptFinal(&ctx, aesBuf, &len)) {
+            EVP_CIPHER_CTX_cleanup(&ctx);
             *err = @"Cipher final failed";
             return NULL;
         }
         [encRaw appendBytes:aesBuf length:len];
+        EVP_CIPHER_CTX_cleanup(&ctx);
         
         // Sign
         NSString* sig = NULL;
@@ -206,17 +208,18 @@
 +(NSString*)sign:(NSData*) data withPriv:(NSString*)priv ifError:(NSString**)err {
     BIO* bio = NULL;
     RSA* rsaPkey = NULL;
-    EVP_PKEY* pkey = EVP_PKEY_new();
+    EVP_PKEY* pkey = NULL;
     @try {
         const char* privRaw = [priv UTF8String]; // autoreleased
         bio = BIO_new_mem_buf((char*)privRaw, strlen(privRaw));
-        rsaPkey = PEM_read_bio_RSAPrivateKey(bio, &rsaPkey, NULL, NULL);
+        rsaPkey = PEM_read_bio_RSAPrivateKey(bio, NULL, NULL, NULL);
         if (rsaPkey == NULL) {
             *err = @"Invalid private key";
             return NULL;
         }
         BIO_free_all(bio); bio = NULL;
         EVP_MD_CTX md;
+        pkey = EVP_PKEY_new();
         EVP_PKEY_set1_RSA(pkey, rsaPkey);
         EVP_MD_CTX_init(&md);
         EVP_DigestSignInit(&md, NULL, EVP_sha1(), NULL, pkey);
@@ -252,14 +255,12 @@
 // and optionaly verifies the signature with a public key
 +(NSArray*)decrypt:(NSString*)enc withSig:(NSString*)sig withPriv:(NSString*)priv withPub:(NSString*)pub ifError:(NSString**)err {
     RSA* rsaPriv = NULL;
-    EVP_PKEY* pubKey = NULL;
     BIO* bio = NULL;
     @try {
         // Parse private key
-        rsaPriv = RSA_new();
         const char* privRaw = [priv UTF8String]; // autoreleased
         bio = BIO_new_mem_buf((char*)privRaw, strlen(privRaw));
-        rsaPriv = PEM_read_bio_RSAPrivateKey(bio, &rsaPriv, NULL, NULL);
+        rsaPriv = PEM_read_bio_RSAPrivateKey(bio, NULL, NULL, NULL);
         BIO_free_all(bio); bio = NULL;
         
         NSData* encRaw = [Crypt decode64:enc];
@@ -278,15 +279,18 @@
         unsigned char buf[[encRaw length]-RSA_BYTES+EVP_MAX_BLOCK_LENGTH];
         int len;
         if (!EVP_DecryptUpdate(&ctx, buf, &len, [encRaw bytes]+RSA_BYTES, [encRaw length]-RSA_BYTES)) {
+            EVP_CIPHER_CTX_cleanup(&ctx);
             *err = @"Cipher update failed";
             return NULL;
         }
         [dec appendBytes:buf length:len];
         if (!EVP_DecryptFinal(&ctx, buf, &len)) {
+            EVP_CIPHER_CTX_cleanup(&ctx);
             *err = @"Cipher final failed";
             return NULL;
         }
         [dec appendBytes:buf length:len];
+        EVP_CIPHER_CTX_cleanup(&ctx);
         
         // Verify
         NSNumber* ver = NULL;
@@ -304,7 +308,6 @@
     }
     @finally {
         if (rsaPriv != NULL) RSA_free(rsaPriv);
-        if (pubKey != NULL) EVP_PKEY_free(pubKey);
         if (bio != NULL) BIO_free_all(bio);
     }
 }
@@ -313,7 +316,7 @@
 +(NSNumber*)verify:(NSData*) data withSig:(NSString*)sig withPub:(NSString*)pub ifError:(NSString**)err {
     RSA* rsaKey = NULL;
     BIO* bio = NULL;
-    EVP_PKEY* key = EVP_PKEY_new();
+    EVP_PKEY* key = NULL;
     @try {
         const char* pubRaw = [pub UTF8String]; // autoreleased
         NSData* sigRaw = [Crypt decode64:sig]; // "
@@ -323,6 +326,7 @@
             *err = @"Invalid public key";
             return NULL;
         }
+        key = EVP_PKEY_new();
         EVP_PKEY_set1_RSA(key, rsaKey);
         EVP_MD_CTX md;
         EVP_MD_CTX_init(&md);
