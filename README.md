@@ -1,5 +1,5 @@
 <div align="center">
-	<img src="https://raw.github.com/whistle-im/whistle-im/master/logo/logo.png" alt="whistle.im" />
+	<img src="https://whistle.im/img/logo-big.png" alt="whistle.im" />
 	<p>The open source bits.</p>
 </div>
 
