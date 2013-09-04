@@ -1,7 +1,19 @@
-/**
- * @fileoverview whistle.im client crypt.
- * All rights reserved.
- * @author Daniel Wirtz <dcode@dcode.io>
+/*
+ * whistle.im browser cryptography library
+ * Copyright (C) 2013 Daniel Wirtz - http://dcode.io
+ * 
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 (function(whistle, forge, bcrypt, global) {
     "use strict";
@@ -188,8 +200,10 @@
      * Calculates the MD5 fingerprint of a key.
      * @param {string} keyStr Public or private key
      * @param {boolean=} unformatted Whether to return the result unformatted, defaults to false
+     * @returns {?string} Fingerprint or null on invalid input
      */
     crypt.fingerprint = function(keyStr, unformatted) {
+        if (!keyStr) return null;
         keyStr = keyStr.replace(/\-\-\-\-\-[^\-]+\-\-\-\-\-|\s+/g, "");
         var k = util.decode64(keyStr);
         var md = forge.md.md5.create();
@@ -378,7 +392,7 @@
      */
     crypt.encryptVcard = function(vcard, publicKey, callback) {
         // Replace empty vcards with an empty string
-        if (vcard === null || typeof vcard != 'object' || Object.keys(vcard).length == 0) {
+        if (vcard === null || typeof vcard !== 'object' || Object.keys(vcard).length == 0) {
             if (typeof callback === 'function') {
                 setTimeout(callback.bind(this, null, ""), 1);
                 return;
@@ -454,10 +468,37 @@
     /**
      * Gets some random bytes.
      * @param {number} len Length
-     * @returns {string} Random bytes
+     * @returns {string} Random bytes, raw
      */
     crypt.random = function(len) {
         return random.getBytesSync(len); // Uses Web Crypto API if available
+    };
+
+    /**
+     * Gets some base64 encoded random bytes.
+     * @param {number} len Length
+     * @returns {string} Random bytes, base64 encoded
+     */
+    crypt.random64 = function(len) {
+        return util.encode64(crypt.random(len));
+    };
+
+    /**
+     * Encodes to base64.
+     * @param {string} data Data to encode, UTF8
+     * @returns {string} Encoded data, UTF8
+     */
+    crypt.encode64 = function(data) {
+        return util.encode64(util.encodeUtf8(data));
+    };
+
+    /**
+     * Decodes from base64.
+     * @param {string} data Data to decode, UTF8
+     * @returns {string} Decoded data, UTF8
+     */
+    crypt.decode64 = function(data) {
+        return util.decodeUtf8(util.decode64(data));
     };
 
     // Web Crypto API Polyfill for bcrypt

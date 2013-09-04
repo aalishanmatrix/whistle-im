@@ -1,8 +1,20 @@
-//
-//  whistle.im native iOS crypt.
-//  Daniel Wirtz <dcode@dcode.io>
-//  All rights reserved.
-//
+/**
+ * whistle.im iOS cryptography library
+ * Copyright (C) 2013 Daniel Wirtz - http://dcode.io
+ * 
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
  
 #import "Crypt.h"
 #import "openssl/rsa.h"
@@ -80,6 +92,7 @@
     char* pub = NULL;
     @try {
         // Properly seed
+        // RAND_poll();
         int rc = RAND_load_file("/dev/urandom", 32);
         if (rc != 32) {
             *err = @"Seed failed";
@@ -109,6 +122,7 @@
         NSMutableArray* ret = [[NSMutableArray alloc] init];
         [ret addObject:[NSString stringWithUTF8String:pkey]];
         [ret addObject:[NSString stringWithUTF8String:pub]];
+        *err = NULL;
         return [NSArray arrayWithArray:ret];
     }
     @catch (NSException* ex) {
@@ -139,7 +153,8 @@
         }
         BIO_free_all(bio); bio = NULL;
         
-        // Seed
+        // Properly seed
+        // RAND_poll();
         int rc = RAND_load_file("/dev/urandom", 32);
         if (rc != 32) {
             *err = @"Seed failed";
@@ -162,10 +177,19 @@
         [encRaw appendBytes:buf length:RSA_BYTES];
         RSA_free(rsaPub); rsaPub = NULL;
         
-        // Encrypt data using AES-256-CBC with PKCS#7 padding (default)
+        // Encrypt data using AES-CBC with PKCS#7 padding (default)
+        const EVP_CIPHER* ciph;
+        switch (AES_BYTES) {
+            case 32:
+                ciph = EVP_aes_256_cbc();
+                break;
+            default:
+                *err = @"Invalid hardcoded cipher size";
+                break;
+        }
         EVP_CIPHER_CTX ctx;
         EVP_CIPHER_CTX_init(&ctx);
-        EVP_EncryptInit(&ctx, EVP_aes_256_cbc(), key, iv);
+        EVP_EncryptInit(&ctx, ciph, key, iv);
         
         unsigned char aesBuf[[data length]+EVP_MAX_BLOCK_LENGTH];
         int len;
@@ -262,22 +286,39 @@
         bio = BIO_new_mem_buf((char*)privRaw, strlen(privRaw));
         rsaPriv = PEM_read_bio_RSAPrivateKey(bio, NULL, NULL, NULL);
         BIO_free_all(bio); bio = NULL;
+        int keySize = RSA_size(rsaPriv);
+        if (keySize != 2048) { // for now
+            *err = @"Invalid rsa key size";
+            return NULL;
+        }
         
         NSData* encRaw = [Crypt decode64:enc];
         
         // Decrypt RSA-OAEP part
-        unsigned char keyIv[RSA_BYTES]; // Is this safe?
-        RSA_private_decrypt(RSA_BYTES, [encRaw bytes], keyIv, rsaPriv, RSA_PKCS1_OAEP_PADDING);
+        unsigned char keyIv[keySize];
+        int len = RSA_private_decrypt(keySize, [encRaw bytes], keyIv, rsaPriv, RSA_PKCS1_OAEP_PADDING);
+        if (len < 32+16) { // Minimum AES-256 key+IV
+            *err = @"Invalid rsa data";
+            return NULL;
+        }
         
         NSMutableData* dec = [[NSMutableData alloc] init];
         
-        // Decrypt data with AES-256-CBC using PKCS#7 padding (default)
+        // Decrypt data with AES-CBC using PKCS#7 padding (default)
+        const EVP_CIPHER* ciph;
+        switch (len-16) {
+            case 32:
+                ciph = EVP_aes_256_cbc();
+                break;
+            default:
+                *err = @"Invalid aes cipher size";
+                return NULL;
+        }
         EVP_CIPHER_CTX ctx;
         EVP_CIPHER_CTX_init(&ctx);
-        EVP_DecryptInit(&ctx, EVP_aes_256_cbc(), keyIv, keyIv+AES_BYTES);
+        EVP_DecryptInit(&ctx, ciph, keyIv, keyIv+AES_BYTES);
         
-        unsigned char buf[[encRaw length]-RSA_BYTES+EVP_MAX_BLOCK_LENGTH];
-        int len;
+        unsigned char buf[[encRaw length]-RSA_BYTES+EVP_MAX_BLOCK_LENGTH]; // AES portion size plus tolerace
         if (!EVP_DecryptUpdate(&ctx, buf, &len, [encRaw bytes]+RSA_BYTES, [encRaw length]-RSA_BYTES)) {
             EVP_CIPHER_CTX_cleanup(&ctx);
             *err = @"Cipher update failed";
@@ -334,6 +375,7 @@
         EVP_DigestVerifyUpdate(&md, [data bytes], [data length]);
         int ret = EVP_DigestVerifyFinal(&md, (unsigned char*)[sigRaw bytes], [sigRaw length]);
         EVP_MD_CTX_cleanup(&md);
+        *err = NULL;
         return [NSNumber numberWithBool:ret == 1 ? YES : NO];
     }
     @catch (NSException* ex) {
