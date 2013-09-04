@@ -5,21 +5,15 @@
 
 Contents
 --------
-* [Client-side cryptography library](https://github.com/whistle-im/whistle-im/tree/master/crypt)
-* [Client language files](https://github.com/whistle-im/whistle-im/tree/master/i18n)
-* Platform specific code
-* [Privacy policy](https://github.com/whistle-im/whistle-im/blob/master/PRIVACYPOLICY.md)
+* [Cryptography libraries](https://github.com/whistle-im/whistle-im/tree/master/client)
+* [Server configurations](https://github.com/whistle-im/whistle-im/tree/master/server)
+* [Language files](https://github.com/whistle-im/whistle-im/tree/master/i18n)
 
-Encryption mechanism
---------------------
-When we started thinking about the actual cryptography algorithms that we are going to implement,
-we decided to make as few trade-offs as possible. This is how it looks like today:
-
-* PKC RSA 2048 / AES 256-CBC / RSAES-OAEP
-* bcrypt authentication prior to PBKDF2 retrieval
-* TLS / DHE-RSA 4096 / AES 256-CBC
-
-![overview](https://whistle.im/img/crypt.png)
+Wiki
+----
+* [Frequently Asked Questions](https://github.com/whistle-im/whistle-im/wiki/Frequently-Asked-Questions)
+* [Encryption Mechanism](https://github.com/whistle-im/whistle-im/wiki/Encryption-Mechanism)
+* [Privacy Policy](https://github.com/whistle-im/whistle-im/wiki/Privacy-Policy)
 
 Internationalization
 --------------------
@@ -28,7 +22,7 @@ used in the sources, to German. You can find all current translations in `i18n/L
 Pull requests, even for entire languages, are welcome!
 
 In case you intend to extend whistle.im with your native language, please review our [Contributor
-License Agreement](https://github.com/whistle-im/whistle-im/blob/master/CLA.md) (CLA) before you start.
+License Agreement](https://github.com/whistle-im/whistle-im/blob/master/CLA) (CLA) before you start.
 
 Translations are simple JSON files containing mappings of English words and sentences to your native
 language. Some values use placeholders like `%name%` which must not be translated but kept as is.
@@ -45,36 +39,23 @@ CLA mentioned above.
 
 Thank you!
 
-Platform specific code
-----------------------
-There are currently some pending tasks that are required to launch apps for
-the different platforms like iOS, Windows Phone or BlackBerry. If you are a programmer and would
-like to contribute to our development, you can freely pick from the following tasks. Please read and
-agree to our CLA mentioned above. Everything else, like if your code will be open source or not, is
-entirely up to you as the original author.
-
-### All platforms except Android &amp; HTML5
-
-* **genkeys** Generate 2048 Bit RSA private and public key pairs (PEM format)
-* **base64encode/decode** Convert a variable number of bytes to/from base64
-* **rsaesoaepEncrypt** Encrypt raw bytes using RSAES-OAEP using a PEM formatted public key
-* **rsaesoaepDecrypt** Decrypt the above back to raw bytes using a PEM formatted private key
-* **genaeskey** Generate a cryptographically secure random 256 bit / 32 byte key
-* **aesEncrypt** Encrypt a variable length of raw bytes through AES-256-CBC with PKCS#7 padding
-* **aesDecrypt** Decrypt the AES-256-CBC with PKCS#7 encrypted bytes from above
-
-Usually a code-snipped will already be sufficient and save us lots of research time. Just send us
-a pull request for `native/PLATFORM/TASK` or send us an email.
-
-Thank you!
-
-Contributors
-------------
-[Daniel Wirtz](https://github.com/dcodeIO/)
-
 License
 -------
-All rights reserved. All contributions are properties of their respective owners.
+whistle.im cryptography library
+Copyright (C) 2013 Daniel Wirtz - http://dcode.io
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program. If not, see: http://www.gnu.org/licenses/
 
 Imprint
 -------
