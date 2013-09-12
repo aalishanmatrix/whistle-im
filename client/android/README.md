@@ -2,6 +2,11 @@ whistle.im Android cryptography library
 =======================================
 Based on Android's javax.crypto with stock [Bouncy Castle](http://www.bouncycastle.org/) and [jBcrypt](http://www.mindrot.org/projects/jBCrypt/).
 
+Contents
+--------
+* Cryptography library
+* Pinning provider
+
 License
 -------
 whistle.im cryptography library

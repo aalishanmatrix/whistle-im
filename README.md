@@ -41,7 +41,7 @@ Thank you!
 
 License
 -------
-whistle.im cryptography library
+whistle.im cryptography library  
 Copyright (C) 2013 Daniel Wirtz - http://dcode.io
 
 This program is free software: you can redistribute it and/or modify

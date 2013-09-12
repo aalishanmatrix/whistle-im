@@ -1,19 +1,19 @@
-/**
- * whistle.im iOS cryptography library
- * Copyright (C) 2013 Daniel Wirtz - http://dcode.io
- * 
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
+/*
+ whistle.im iOS cryptography library
+ Copyright (C) 2013 Daniel Wirtz - http://dcode.io
+ 
+ This program is free software: you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation, either version 3 of the License, or
+ (at your option) any later version.
+ 
+ This program is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ GNU General Public License for more details.
+ 
+ You should have received a copy of the GNU General Public License
+ along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
  
 #import "Crypt.h"
@@ -22,11 +22,14 @@
 #import "openssl/pem.h"
 #import "openssl/rand.h"
 #import "openssl/evp.h"
+#import "openssl/x509.h"
 #import "JFBCrypt.h"
 
 @implementation Crypt
 
-// Encodes raw data to a base64 encoded string
+/**
+ * Encodes raw data to a base64 encoded string.
+ */
 +(NSString*)encode64:(NSData*)data {
     BIO* b64 = BIO_new(BIO_f_base64());
     BIO* out = BIO_new(BIO_s_mem());
@@ -50,7 +53,9 @@
     }
 }
 
-// Decodes a base64 encoded string to raw data
+/**
+ * Decodes a base64 encoded string to raw data.
+ */
 +(NSData*)decode64:(NSString*)s {
     // The decoder requires proper new lines, so...
     NSMutableString* sb = [[NSMutableString alloc] init];
@@ -84,7 +89,64 @@
     }
 }
 
-// Generates a private and public key pair
+/**
+ * Converts (multiple) PEM formatted certificates to DER.
+ */
++(NSArray*)readPEM:(NSString*)file {
+    X509* x = NULL;
+    BIO* bio = NULL;
+    FILE* fp = NULL;
+    NSMutableArray* ret = [NSMutableArray new];
+    @try {
+        NSRange range = [file rangeOfString:@"/" options:NSBackwardsSearch];
+        if (range.location == NSNotFound) {
+            NSLog(@"Reading PEM failed: Invalid file name");
+            return NULL;
+        }
+        NSLog(@"Reading PEM: %@", [file substringFromIndex:range.location+1]);
+        fp = fopen([file cStringUsingEncoding:NSUTF8StringEncoding], "r");
+        while (!feof(fp)) {
+            x = X509_new();
+            if (PEM_read_X509(fp, &x, NULL, NULL)) {
+                char buf[512];
+                X509_NAME_oneline(X509_get_subject_name(x), buf, 511);
+                NSLog(@"Found certificate: %s", buf);
+                bio = BIO_new(BIO_s_mem());
+                if (i2d_X509_bio(bio, x)) {
+                    int len = BIO_pending(bio);
+                    unsigned char data[len];
+                    BIO_read(bio, data, len);
+                    NSData* cert = [NSData dataWithBytes:data length:len];
+                    [ret addObject:cert];
+                }
+                BIO_free_all(bio); bio = NULL;
+            }
+            X509_free(x); x = NULL;
+        }
+        if ([ret count] == 0) {
+            NSLog(@"Reading PEM failed: No valid X509 certificates");
+            return NULL;
+        }
+        return [NSArray arrayWithArray:ret];
+    }
+    @finally {
+        if (x != NULL) X509_free(x);
+        if (fp != NULL) fclose(fp);
+    }
+}
+
+/**
+ * Checks if a RSA key is generally valid.
+ */
++(BOOL)checkkey:(RSA*)key {
+    if (key == NULL) return false;
+    if (RSA_size(key) != RSA_BYTES) return false; // For now
+    return true;
+}
+
+/**
+ * Generates a private and public key pair.
+ */
 +(NSArray*)genkeys:(NSNumber*)bits withExp:(NSNumber*)exp ifError:(NSString**)err {
     RSA* rsa = NULL;
     BIO* bio = NULL;
@@ -137,8 +199,9 @@
     }
 }
 
-// Encrypts raw data to base64 with the specified public key
-// and optionally signs it with a private key
+/**
+ * Encrypts raw data to base64 with the specified public key and optionally signs it with a private key.
+ */
 +(NSArray*)encrypt:(NSData*)data withPub:(NSString*)pub withPriv:(NSString*)priv ifError:(NSString**)err {
     RSA* rsaPub = NULL;
     BIO* bio = NULL;
@@ -147,7 +210,7 @@
         const char* pubRaw = [pub UTF8String]; // autoreleased
         bio = BIO_new_mem_buf((char*)pubRaw, strlen(pubRaw));
         rsaPub = PEM_read_bio_RSA_PUBKEY(bio, NULL, NULL, NULL);
-        if (rsaPub == NULL) {
+        if (![Crypt checkkey:rsaPub]) {
             *err = @"Invalid public key";
             return NULL;
         }
@@ -184,8 +247,8 @@
                 ciph = EVP_aes_256_cbc();
                 break;
             default:
-                *err = @"Invalid hardcoded cipher size";
-                break;
+                *err = @"Invalid aes cipher size";
+                return NULL;
         }
         EVP_CIPHER_CTX ctx;
         EVP_CIPHER_CTX_init(&ctx);
@@ -228,7 +291,9 @@
     }
 }
 
-// Signs raw data with the specified private key
+/**
+ * Signs raw data with the specified private key.
+ */
 +(NSString*)sign:(NSData*) data withPriv:(NSString*)priv ifError:(NSString**)err {
     BIO* bio = NULL;
     RSA* rsaPkey = NULL;
@@ -237,7 +302,7 @@
         const char* privRaw = [priv UTF8String]; // autoreleased
         bio = BIO_new_mem_buf((char*)privRaw, strlen(privRaw));
         rsaPkey = PEM_read_bio_RSAPrivateKey(bio, NULL, NULL, NULL);
-        if (rsaPkey == NULL) {
+        if (![Crypt checkkey:rsaPkey]) {
             *err = @"Invalid private key";
             return NULL;
         }
@@ -275,8 +340,9 @@
     }
 }
 
-// Decrypts base64 encoded data to raw data with the specified private key
-// and optionaly verifies the signature with a public key
+/**
+ * Decrypts base64 encoded data to raw data with the specified private key and optionaly verifies the signature with a public key.
+ */
 +(NSArray*)decrypt:(NSString*)enc withSig:(NSString*)sig withPriv:(NSString*)priv withPub:(NSString*)pub ifError:(NSString**)err {
     RSA* rsaPriv = NULL;
     BIO* bio = NULL;
@@ -287,8 +353,8 @@
         rsaPriv = PEM_read_bio_RSAPrivateKey(bio, NULL, NULL, NULL);
         BIO_free_all(bio); bio = NULL;
         int keySize = RSA_size(rsaPriv);
-        if (keySize != 2048) { // for now
-            *err = @"Invalid rsa key size";
+        if (![Crypt checkkey:rsaPriv]) {
+            *err = @"Invalid rsa key";
             return NULL;
         }
         
@@ -353,7 +419,9 @@
     }
 }
 
-// Verifies a signature against raw data with the specified public key
+/**
+ * Verifies a signature against raw data with the specified public key.
+ */
 +(NSNumber*)verify:(NSData*) data withSig:(NSString*)sig withPub:(NSString*)pub ifError:(NSString**)err {
     RSA* rsaKey = NULL;
     BIO* bio = NULL;
@@ -363,7 +431,7 @@
         NSData* sigRaw = [Crypt decode64:sig]; // "
         BIO* bio = BIO_new_mem_buf((char*)pubRaw, strlen(pubRaw));
         rsaKey = PEM_read_bio_RSA_PUBKEY(bio, &rsaKey, NULL, NULL);
-        if (rsaKey == NULL) {
+        if (![Crypt checkkey:rsaKey]) {
             *err = @"Invalid public key";
             return NULL;
         }
@@ -389,7 +457,9 @@
     }
 }
 
-// Hashes a password through bcrypt
+/**
+ * Hashes a password through bcrypt.
+ */
 +(NSString*)hash:(NSString*)pass withSaltOrRounds:(NSObject*)saltOrRounds {
     NSString* salt;
     if ([saltOrRounds isKindOfClass:[NSNumber class]]) {

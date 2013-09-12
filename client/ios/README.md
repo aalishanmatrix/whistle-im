@@ -2,6 +2,11 @@ whistle.im iOS cryptography library
 ===================================
 Based on our [OpenSSL](http://www.openssl.org/) iOS port and [JFBcrypt](https://github.com/jayfuerstenberg/JFCommon/blob/master/JFBCrypt.m).
 
+Contents
+--------
+* Cryptography library
+* Pinned URL connection
+
 License
 -------
 whistle.im cryptography library
